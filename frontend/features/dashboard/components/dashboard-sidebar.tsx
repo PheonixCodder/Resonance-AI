@@ -30,8 +30,8 @@ import {
   Headphones,
 } from "lucide-react";
 import Link from "next/link";
-// import { UsageContainer } from "@/features/billing/components/usage-container";
-// import { VoiceCreateDialog } from "@/features/voices/components/voice-create-dialog";
+import { UsageContainer } from "@/features/billing/components/usage-container";
+import { VoiceCreateDialog } from "@/features/voices/components/voice-create-dialog";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -137,10 +137,10 @@ export function DashboardSidebar() {
 
   return (
     <>
-      {/* <VoiceCreateDialog
+      <VoiceCreateDialog
       open={voiceDialogOpen}
       onOpenChange={setVoiceDialogOpen}
-    /> */}
+    />
       <Sidebar collapsible="icon">
         <SidebarHeader className="flex flex-col gap-4 pt-4">
           <div className="flex items-center gap-2 pl-1 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:pl-0">
@@ -153,16 +153,14 @@ export function DashboardSidebar() {
             >
               {sidebar.state === "collapsed" ? (
                 <>
-                  {/* Trigger: Hidden by default, grows into view on hover */}
                   <SidebarTrigger
                     className={cn(
                       "transition-all duration-300 ease-in-out transform",
                       "w-0 opacity-0 scale-90 group-hover:w-full group-hover:opacity-100 group-hover:scale-100",
-                      "p-0 flex items-center justify-center h-full", // Reset padding to prevent height bulge
+                      "p-0 flex items-center justify-center h-full",
                     )}
                   />
 
-                  {/* Logo: Visible by default, shrinks/fades out on hover */}
                   <Image
                     src="/logo.svg"
                     alt="Resonance"
@@ -228,7 +226,7 @@ export function DashboardSidebar() {
         </SidebarContent>
         <div className="border-b border-dashed border-border" />
         <SidebarFooter className="gap-3 py-3">
-          {/* <UsageContainer /> */}
+          <UsageContainer />
           <SidebarMenu>
             <SidebarMenuItem>
               <UserButton
