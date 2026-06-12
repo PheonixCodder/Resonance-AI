@@ -9,10 +9,10 @@ import { env } from "./env";
 
 const r2 = new S3Client({
   region: "auto",
-  endpoint: `s3.us-east-005.backblazeb2.com`,
+  endpoint: `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
   credentials: {
-    accessKeyId: env.R2_ACCESS_KEY_ID,
-    secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+    accessKeyId: env.R2_ACCESS_KEY_ID.trim(),
+    secretAccessKey: env.R2_SECRET_ACCESS_KEY.trim(),
   },
 });
 
@@ -52,4 +52,23 @@ export async function getSignedAudioUrl(key: string): Promise<string> {
     Key: key,
   });
   return getSignedUrl(r2, command, { expiresIn: 3600 }); // 1 hour
-};
+}
+
+export async function getAudioObject(key: string) {
+  const result = await r2.send(
+    new GetObjectCommand({
+      Bucket: env.R2_BUCKET_NAME,
+      Key: key,
+    }),
+  );
+
+  if (!result.Body) {
+    throw new Error(`Audio object "${key}" has an empty body`);
+  }
+
+  return {
+    body: await result.Body.transformToByteArray(),
+    contentType: result.ContentType ?? "audio/wav",
+    contentLength: result.ContentLength,
+  };
+}
