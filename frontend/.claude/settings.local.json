@@ -1,0 +1,6 @@
+{
+  "enabledMcpjsonServers": [
+    "framer"
+  ],
+  "enableAllProjectMcpServers": true
+}

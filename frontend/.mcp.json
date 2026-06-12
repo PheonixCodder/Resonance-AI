@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "framer": {
+      "type": "http",
+      "url": "https://mcp.unframer.co/mcp?id=7d186f58ef021b9282a66c06a36ab1a30ea36ab5811106c6a00f52bbe5ac52fb&secret=9jzQmIva2MA6DJ6xtLscgUxzhM9d5O1r"
+    }
+  }
+}
