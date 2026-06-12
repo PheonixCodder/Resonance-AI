@@ -4,7 +4,7 @@ import "./globals.css";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Toaster } from "@/components/ui/sonner";
 import { ClerkProvider } from "@clerk/nextjs";
-// import { TRPCReactProvider } from "@/trpc/client";
+import { TRPCReactProvider } from "@/trpc/client";
 
 const outfit = Outfit({
   weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
@@ -25,14 +25,14 @@ export default function RootLayout({
 }>) {
   return (
     <ClerkProvider>
-      {/* <TRPCReactProvider> */}
+      <TRPCReactProvider>
       <html lang="en">
         <body className={`${outfit.className} antialiased`}>
           <NuqsAdapter>{children}</NuqsAdapter>
           <Toaster />
         </body>
       </html>
-      {/* </TRPCReactProvider> */}
+      </TRPCReactProvider>
     </ClerkProvider>
   );
 }
