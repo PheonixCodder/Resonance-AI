@@ -96,6 +96,31 @@ class Chatterbox:
     def load_model(self):
         self.model = ChatterboxTurboTTS.from_pretrained(device="cuda")
 
+    def _synthesize(
+        self,
+        prompt: str,
+        audio_prompt_path: str,
+        temperature: float = 0.8,
+        top_p: float = 0.95,
+        top_k: int = 1000,
+        repetition_penalty: float = 1.2,
+        norm_loudness: bool = True,
+    ) -> bytes:
+        wav = self.model.generate(
+            prompt,
+            audio_prompt_path=audio_prompt_path,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            repetition_penalty=repetition_penalty,
+            norm_loudness=norm_loudness,
+        )
+
+        buffer = io.BytesIO()
+        ta.save(buffer, wav, self.model.sr, format="wav")
+        buffer.seek(0)
+        return buffer.read()
+
     @modal.asgi_app()
     def serve(self):
         web_app = FastAPI(
@@ -122,7 +147,11 @@ class Chatterbox:
                 )
 
             try:
-                audio_bytes = self.generate.local(
+                print(
+                    f"[generate] starting voice_key={request.voice_key!r} "
+                    f"prompt_len={len(request.prompt)}"
+                )
+                audio_bytes = self._synthesize(
                     request.prompt,
                     str(voice_path),
                     request.temperature,
@@ -131,11 +160,13 @@ class Chatterbox:
                     request.repetition_penalty,
                     request.norm_loudness,
                 )
+                print(f"[generate] success bytes={len(audio_bytes)}")
                 return StreamingResponse(
                     io.BytesIO(audio_bytes),
                     media_type="audio/wav",
                 )
             except Exception as e:
+                print(f"[generate] failed voice_key={request.voice_key!r} error={e!r}")
                 raise HTTPException(
                     status_code=500,
                     detail=f"Failed to generate audio: {e}",
@@ -154,20 +185,15 @@ class Chatterbox:
         repetition_penalty: float = 1.2,
         norm_loudness: bool = True,
     ):
-        wav = self.model.generate(
+        return self._synthesize(
             prompt,
-            audio_prompt_path=audio_prompt_path,
-            temperature=temperature,
-            top_p=top_p,
-            top_k=top_k,
-            repetition_penalty=repetition_penalty,
-            norm_loudness=norm_loudness,
+            audio_prompt_path,
+            temperature,
+            top_p,
+            top_k,
+            repetition_penalty,
+            norm_loudness,
         )
-
-        buffer = io.BytesIO()
-        ta.save(buffer, wav, self.model.sr, format="wav")
-        buffer.seek(0)
-        return buffer.read()
 
 
 @app.local_entrypoint()

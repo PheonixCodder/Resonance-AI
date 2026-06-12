@@ -222,7 +222,7 @@ export const generationsRouter = createTRPCRouter({
         });
 
       return {
-        id: "generationId",
+        id: generationId,
       };
     }),
 });
