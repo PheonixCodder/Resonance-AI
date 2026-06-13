@@ -25,6 +25,10 @@ flowchart TB
         Prisma[(PostgreSQL)]
     end
 
+    subgraph trigger [Trigger.dev]
+        Task[generate-speech task]
+    end
+
     subgraph modal [Modal GPU]
         TTS[Chatterbox Turbo TTS]
     end
@@ -51,14 +55,15 @@ flowchart TB
     API --> Sentry
 ```
 
-### Request flow: TTS generation
+### Request flow: TTS generation (async)
 
 1. User submits text + voice in the dashboard
 2. `generations.create` (tRPC) verifies an active Polar subscription
-3. Frontend calls **Modal Chatterbox** with the voice's `r2ObjectKey`
-4. Modal reads the reference audio from R2, runs GPU inference, returns WAV bytes
-5. App uploads output to R2, creates a `Generation` row in Postgres
-6. User is redirected to the generation detail page; audio streams from `/api/audio/[id]`
+3. App creates a `Generation` row with `status: PENDING`
+4. App enqueues `generate-speech` via Trigger.dev and returns `{ id, triggerRunId, publicAccessToken }` immediately
+5. Detail page subscribes with `useRealtimeRun` for live progress (metadata stages)
+6. Trigger task sets `PROCESSING` → calls Modal `/generate` → uploads WAV to R2 → sets `COMPLETED`
+7. UI refetches generation data and streams audio from `/api/audio/[id]` (409 until `COMPLETED`)
 
 ## Tech stack
 
@@ -71,6 +76,7 @@ flowchart TB
 | Object storage | Cloudflare R2 (S3-compatible) |
 | TTS inference | [Chatterbox Turbo](https://github.com/resemble-ai/chatterbox) on [Modal](https://modal.com) (A10G GPU) |
 | Billing | [Polar](https://polar.sh) (subscriptions + usage meters) |
+| Background jobs | [Trigger.dev](https://trigger.dev) (async TTS + Realtime UI) |
 | Observability | Sentry |
 | Package manager | [Bun](https://bun.sh) |
 
@@ -85,6 +91,7 @@ resonance-ai/
 │   ├── lib/                  # Prisma, R2, Polar, Chatterbox client, env
 │   ├── prisma/               # Schema and migrations
 │   ├── scripts/              # Seed voices, sync OpenAPI types
+│   ├── trigger/              # Trigger.dev background tasks
 │   ├── trpc/                 # tRPC routers and server setup
 │   └── types/                # Generated Chatterbox API types
 └── modal/
@@ -172,6 +179,21 @@ POLAR_METER_TTS_PROPERTY=characters
 
 Use `POLAR_SERVER=production` for live billing.
 
+#### Trigger.dev
+
+```env
+TRIGGER_SECRET_KEY=tr_dev_...
+TRIGGER_PROJECT_REF=proj_...
+```
+
+Create a project at [cloud.trigger.dev](https://cloud.trigger.dev). The dev secret key goes in `.env.local` and Railway. Use `tr_prod_...` on Railway for production enqueueing.
+
+**Task runtime env vars** are synced automatically from `.env.local` on each `bun run trigger:deploy` via `syncEnvVars` in `trigger.config.ts`. Required vars:
+
+`DATABASE_URL`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `CHATTERBOX_API_URL`, `CHATTERBOX_API_KEY`, `POLAR_ACCESS_TOKEN`, `POLAR_SERVER`, `POLAR_METER_TTS_GENERATION`, `POLAR_METER_TTS_PROPERTY`, `APP_URL`
+
+You can also set or override them manually in the Trigger.dev dashboard → Environment variables.
+
 #### Optional
 
 ```env
@@ -208,9 +230,19 @@ This uploads audio to R2 at `voices/system/{voiceId}` and upserts `Voice` rows i
 bun run dev
 ```
 
+This starts **Next.js** and the **Trigger.dev worker** concurrently (`next dev` + `trigger:dev`). Both must run for async TTS generation to work locally.
+
 Open [http://localhost:3000](http://localhost:3000). Sign in, select an organization, and use the dashboard.
 
 > **Note:** Use `bun run dev` and `bun run build` — not `bunx run build` (that runs a different package).
+
+### 6. Deploy Trigger.dev tasks
+
+After setting task env vars in the Trigger.dev dashboard:
+
+```bash
+bun run trigger:deploy
+```
 
 ---
 
@@ -312,6 +344,8 @@ CHATTERBOX_API_URL=https://<modal-url> bunx tsx scripts/sync-api.ts
 
 Set all environment variables from [Local development](#2-environment-variables). Ensure `APP_URL` is your public Railway URL (e.g. `https://your-app.up.railway.app`).
 
+Also set `TRIGGER_SECRET_KEY` (prod key) and `TRIGGER_PROJECT_REF` on Railway.
+
 `bun run build` runs `prisma generate` automatically — the generated client is gitignored and created at build time.
 
 Run migrations against production once:
@@ -319,6 +353,15 @@ Run migrations against production once:
 ```bash
 DATABASE_URL=<production-url> bunx prisma migrate deploy
 ```
+
+Deploy Trigger.dev tasks when task code changes:
+
+```bash
+cd frontend
+bun run trigger:deploy
+```
+
+Ensure task runtime env vars are configured in the Trigger.dev dashboard (see [Trigger.dev env vars](#triggerdev)).
 
 ### Modal
 
@@ -338,7 +381,7 @@ Point `CHATTERBOX_API_URL` and `CHATTERBOX_API_KEY` on Railway to match the depl
 | Router | Procedures | Description |
 |--------|------------|-------------|
 | `voices` | `getAll`, … | List system and org custom voices |
-| `generations` | `create`, `getAll`, `getById` | TTS generation (requires subscription) |
+| `generations` | `create`, `getAll`, `getById`, `getRunAccess` | Async TTS generation (requires subscription) |
 | `billing` | `getStatus`, `createCheckout`, `createPortalSession` | Polar subscription and usage |
 
 ### REST
@@ -393,6 +436,9 @@ Users without a subscription see an upgrade prompt with a checkout link.
 | `bun run dev` | Start Next.js dev server |
 | `bun run build` | Generate Prisma client + production build |
 | `bun run start` | Start production server |
+| `bun run dev` | Start Next.js + Trigger.dev worker (concurrent) |
+| `bun run trigger:dev` | Start Trigger.dev worker only |
+| `bun run trigger:deploy` | Deploy background tasks to Trigger.dev |
 | `bun run lint` | Run ESLint |
 | `bunx prisma migrate dev` | Create/apply migrations (development) |
 | `bunx prisma migrate deploy` | Apply migrations (production) |
@@ -441,6 +487,20 @@ Expected without an active Polar subscription. Fix Polar env vars and complete c
 ### `billing.createCheckout` returns 500
 
 Verify `POLAR_ACCESS_TOKEN`, `POLAR_PRODUCT_ID`, and `POLAR_SERVER` (`sandbox` vs `production`) all match the same Polar environment.
+
+### TTS generation stuck on "Pending" / never completes
+
+- **Local dev:** Ensure `bun run dev` is running (starts both Next.js and `trigger:dev`). If only `next dev` is running, jobs are enqueued but never executed.
+- **Production:** Confirm `TRIGGER_SECRET_KEY` and `TRIGGER_PROJECT_REF` are set on Railway, and task env vars are in the [Trigger.dev dashboard](#triggerdev).
+- Check the Trigger.dev dashboard for failed `generate-speech` runs.
+
+### `/api/audio/[id]` returns 409
+
+Expected while `status` is not `COMPLETED`. Wait for the Trigger task to finish or check the generation detail page for a failed status.
+
+### Realtime progress not showing on detail page
+
+The `publicAccessToken` from `tasks.trigger` expires after ~15 minutes. Reloading the page falls back to `generations.getRunAccess` for a fresh token. If both fail, the page shows a static "still generating" message until DB status updates.
 
 ---
 

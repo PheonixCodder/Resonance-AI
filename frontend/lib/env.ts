@@ -1,5 +1,8 @@
+import { config } from "dotenv";
 import { z } from "zod";
 import { createEnv } from "@t3-oss/env-nextjs";
+
+config({ path: ".env.local" });
 
 export const env = createEnv({
   server: {
@@ -17,6 +20,8 @@ export const env = createEnv({
     R2_BUCKET_NAME: z.string().min(1),
     CHATTERBOX_API_URL: z.string().url(),
     CHATTERBOX_API_KEY: z.string().min(1),
+    TRIGGER_SECRET_KEY: z.string().min(1),
+    TRIGGER_PROJECT_REF: z.string().min(1),
   },
   experimental__runtimeEnv: {},
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,

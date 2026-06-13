@@ -8,7 +8,7 @@ import { useMutation } from "@tanstack/react-query";
 
 import { useTRPC } from "@/trpc/client";
 import { useAppForm } from "@/hooks/use-app-form";
- import { useCheckout } from "@/features/billing/hooks/use-checkout";
+import { useCheckout } from "@/features/billing/hooks/use-checkout";
 
 const ttsFormSchema = z.object({
   text: z.string().min(1, "Please enter some text"),
@@ -47,7 +47,7 @@ export function TextToSpeechForm({
     trpc.generations.create.mutationOptions({}),
   );
 
-    const { checkout } = useCheckout();
+  const { checkout } = useCheckout();
 
   const form = useAppForm({
     ...ttsFormOptions,
@@ -66,7 +66,17 @@ export function TextToSpeechForm({
           repetitionPenalty: value.repetitionPenalty,
         });
 
-        toast.success("Audio generated successfully!");
+        if (data.publicAccessToken && data.triggerRunId) {
+          const { saveGenerationRealtimeAccess } = await import(
+            "@/features/text-to-speech/lib/generation-realtime"
+          );
+          saveGenerationRealtimeAccess(data.id, {
+            triggerRunId: data.triggerRunId,
+            publicAccessToken: data.publicAccessToken,
+          });
+        }
+
+        toast.success("Generation started");
         router.push(`/text-to-speech/${data.id}`);
       } catch (error) {
         const message =
