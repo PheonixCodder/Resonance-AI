@@ -49,8 +49,11 @@ flowchart TB
     API --> Clerk
     API --> Polar
     API --> Prisma
+    API -->|tasks.trigger| Task
     API --> storage
-    API -->|POST /generate| TTS
+    Task --> Prisma
+    Task -->|POST /generate| TTS
+    Task --> storage
     TTS -->|read voice refs| storage
     API --> Sentry
 ```
