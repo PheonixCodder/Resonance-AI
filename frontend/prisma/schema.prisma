@@ -32,6 +32,13 @@ enum VoiceCategory {
   CORPORATE
 }
 
+enum GenerationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 model Voice {
   id String @id @default(cuid())
 
@@ -69,9 +76,14 @@ model Generation {
   topK              Int
   repetitionPenalty Float
 
+  status       GenerationStatus @default(PENDING)
+  errorMessage String?
+  triggerRunId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([orgId])
   @@index([voiceId])
+  @@index([status])
 }

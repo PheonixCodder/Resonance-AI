@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { getSignedAudioUrl } from "@/lib/r2";
 import prisma from "@/lib/prisma";
+import { GenerationStatus } from "@/lib/generated/prisma/enums";
 
 export async function GET(
   _request: Request,
@@ -22,6 +23,10 @@ export async function GET(
     return new Response("Not found", { status: 404 });
   }
 
+  if (generation.status !== GenerationStatus.COMPLETED) {
+    return new Response("Audio is not available yet", { status: 409 });
+  }
+
   if (!generation.r2ObjectKey) {
     return new Response("Audio is not available yet", { status: 409 });
   }
@@ -39,4 +44,4 @@ export async function GET(
       "Cache-Control": "private, max-age=3600",
     },
   });
-};
+}

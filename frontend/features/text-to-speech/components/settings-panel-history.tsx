@@ -1,11 +1,14 @@
 "use client";
 
 import { VoiceAvatar } from "@/components/voice-avatar/voice-avatar";
+import { Badge } from "@/components/ui/badge";
 import { useTRPC } from "@/trpc/client";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { AudioLines, AudioWaveform, Clock } from "lucide-react";
 import Link from "next/link";
+import { getGenerationStatusLabel } from "@/features/text-to-speech/lib/generation-status";
+import { GenerationStatus } from "@/lib/generated/prisma/enums";
 
 export function SettingsPanelHistory() {
   const trpc = useTRPC();
@@ -49,9 +52,23 @@ export function SettingsPanelHistory() {
           className="flex items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-muted"
         >
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <p className="truncate text-sm font-medium text-foreground">
-              {generation.text}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="truncate text-sm font-medium text-foreground">
+                {generation.text}
+              </p>
+              {generation.status !== GenerationStatus.COMPLETED && (
+                <Badge
+                  variant={
+                    generation.status === GenerationStatus.FAILED
+                      ? "destructive"
+                      : "outline"
+                  }
+                  className="shrink-0 text-[10px]"
+                >
+                  {getGenerationStatusLabel(generation.status)}
+                </Badge>
+              )}
+            </div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <VoiceAvatar
                 seed={generation.voiceId ?? generation.voiceName}
